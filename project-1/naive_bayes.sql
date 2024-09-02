@@ -1,0 +1,147 @@
+use database cheetah_db;
+use schema public;
+
+create or replace TABLE example_dataset_test (label INTEGER, text VARCHAR);
+create or replace TABLE example_dataset_train (label INTEGER, text VARCHAR);
+
+INSERT INTO example_dataset_train (label, text) VALUES
+    (0, 'just plain boring'),
+    (0, 'entirely predictable and lacks energy'),
+    (0, 'no surprises and very few laughs'),
+    (4, 'very powerful'),
+    (4, 'the most fun film of the summer');
+
+INSERT INTO example_dataset_test (label, text) VALUES
+    (0, 'predictable with no fun');
+
+set training_table = 'yelp_train';
+set test_table = 'yelp_test';
+
+-- For simplicity, we only focus on 1 and 5 star reviews - a binary classifier with the two extremes
+CREATE TABLE training_table AS
+SELECT *
+FROM TABLE($training_table)
+WHERE label = 0 OR label = 4;
+
+CREATE OR REPLACE FUNCTION probability_of_class(cj integer) RETURNS INTEGER AS $$
+    SELECT 
+      (SELECT COUNT(*) FROM training_table WHERE label = cj) / 
+      (SELECT COUNT(*) FROM training_table)
+$$;
+
+-- For each class, compute the probability of a random word belonging to that class
+CREATE OR REPLACE TABLE label_probabilities AS
+SELECT label, probability_of_class(label) AS label_probability
+FROM training_table
+GROUP BY label;
+
+-- A simple UDF to normalise and clean an input string
+create or replace function clean_string("str" string)
+returns string
+language javascript
+strict immutable
+as
+$$
+    return str.replace(/[^A-Za-z 0-9]/g, '').toLowerCase();
+$$;
+
+-- Convert the list of strings into rows of individual words
+CREATE OR REPLACE TABLE words AS
+SELECT seq as row_id, index, value as word, label
+FROM (
+    SELECT SPLIT(clean_string(text), ' ') AS words, label
+    FROM training_table
+) split_words,
+LATERAL FLATTEN(split_words.words)
+WHERE value <> '';
+
+-- Compute the total vocabular size
+set V = (SELECT COUNT(DISTINCT word) FROM words);
+
+-- One option - query per word/label
+CREATE OR REPLACE FUNCTION word_count(search_word VARCHAR, search_label INTEGER) RETURNS INTEGER AS $$
+    SELECT COUNT(*)
+    FROM words
+    WHERE label = search_label AND word = search_word
+$$;
+
+-- Another option, use view grouped by word+label
+/*
+CREATE OR REPLACE TABLE word_counts AS
+SELECT word, label, COUNT(*) AS count
+FROM words
+GROUP BY (word, label);
+
+select SUM(count) from word_counts group by label;
+select * from word_counts;
+*/
+
+CREATE OR REPLACE FUNCTION probability_of_word_given_class(search_word VARCHAR, search_label INTEGER) RETURNS INTEGER AS $$
+    -- Uses Laplace smoothing (i.e. add-1)
+    (SELECT word_count(search_word, search_label) + 1) / (
+        SELECT COUNT(*) + $V
+        FROM words
+        WHERE label = search_label
+    )
+$$;
+
+-- For each word and class, compute the probability that the word belongs in that class
+CREATE OR REPLACE TABLE word_label_probabilities AS
+SELECT word, label, probability_of_word_given_class(word, label) AS probability
+FROM words
+GROUP BY (word, label);
+
+-- An alternative using an inner join
+/*
+WITH num_words_by_label AS (
+    SELECT label, COUNT(*) AS num_words_with_label
+    FROM words
+    GROUP BY label
+)
+SELECT word, words.label, word_count(word, num_words_by_label.label) / num_words_with_label as probability
+FROM words
+INNER JOIN num_words_by_label on num_words_by_label.label = words.label;
+*/
+
+-- Assign unique IDs to all test entries so we can relate the results later back to the inputs
+CREATE OR REPLACE TABLE test_table AS
+SELECT text, label AS expected_label, ROW_NUMBER()
+  OVER (ORDER BY label DESC) AS feature_id
+FROM TABLE($test_table);
+
+-- Split the test dataset into individual words
+CREATE OR REPLACE TABLE test_words AS
+SELECT feature_id, value AS word
+FROM (
+    SELECT SPLIT(clean_string(text), ' ') AS words, feature_id
+    FROM test_table
+) split_words,
+LATERAL FLATTEN(split_words.words)
+WHERE value <> '';
+
+-- For each word, compute all P(w_i | c_j) - the probability that the word belongs to each class
+CREATE OR REPLACE TABLE test_word_probabilities AS
+SELECT feature_id, word, label, probability_of_word_given_class(word, label) AS probability
+FROM test_words, label_probabilities
+-- WHERE word <> 'with' -- temporary for test example
+ORDER BY (label, word);
+
+-- For each feature and each class, compute the probability of feature belonging to that class
+CREATE OR REPLACE TABLE output_probabilities AS
+SELECT feature_id, lp.label, lp.label_probability * exp(sum(ln(probability))) AS probability -- product(..) doesn't exist, so this is one way to do it
+FROM test_word_probabilities twp
+JOIN label_probabilities lp ON lp.label = twp.label
+GROUP BY (feature_id, lp.label, label_probability)
+ORDER BY probability DESC;
+
+-- Select the class with the highest probability for each feature
+WITH results AS (
+    select a.feature_id, label as output_label, probability
+    from (
+        select feature_id, probability, label, ROW_NUMBER() OVER(PARTITION BY feature_id ORDER BY probability desc) as rn
+        from output_probabilities
+    ) as a
+    where rn = 1
+)
+SELECT results.feature_id, text, expected_label, output_label, probability FROM results
+JOIN test_table ON test_table.feature_id = results.feature_id;
