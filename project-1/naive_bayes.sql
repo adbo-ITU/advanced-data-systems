@@ -1,8 +1,8 @@
-use database cheetah_db;
-use schema public;
+USE DATABASE cheetah_db;
+USE SCHEMA public;
 
-create or replace TABLE example_dataset_test (label INTEGER, text VARCHAR);
-create or replace TABLE example_dataset_train (label INTEGER, text VARCHAR);
+CREATE OR REPLACE TABLE example_dataset_test (label INTEGER, text VARCHAR);
+CREATE OR REPLACE TABLE example_dataset_train (label INTEGER, text VARCHAR);
 
 INSERT INTO example_dataset_train (label, text) VALUES
     (0, 'just plain boring'),
@@ -36,18 +36,18 @@ FROM training_table
 GROUP BY label;
 
 -- A simple UDF to normalise and clean an input string
-create or replace function clean_string("str" string)
-returns string
-language javascript
-strict immutable
-as
+CREATE OR REPLACE FUNCTION clean_string("str" string)
+RETURNS string
+LANGUAGE javascript
+STRICT IMMUTABLE
+AS
 $$
     return str.replace(/[^A-Za-z 0-9]/g, '').toLowerCase();
 $$;
 
 -- Convert the list of strings into rows of individual words
 CREATE OR REPLACE TABLE words AS
-SELECT seq as row_id, index, value as word, label
+SELECT seq AS row_id, index, value AS word, label
 FROM (
     SELECT SPLIT(clean_string(text), ' ') AS words, label
     FROM training_table
@@ -90,8 +90,7 @@ CREATE OR REPLACE TABLE word_label_probabilities AS
 -- Uses Laplace smoothing (i.e. add-1)
 SELECT word, tot.label, laplace_smooth(word_count, total_words_with_label) AS probability, word_count, total_words_with_label
 FROM word_count_by_label wc
-JOIN total_words_in_classes tot ON wc.label = tot.label
-order by probability desc;
+JOIN total_words_in_classes tot ON wc.label = tot.label;
 
 -- Assign unique IDs to all test entries so we can relate the results later back to the inputs
 CREATE OR REPLACE TABLE test_table AS
@@ -145,20 +144,20 @@ ORDER BY ranking DESC;
 -- Select the class with the highest ranking for each feature
 CREATE OR REPLACE TABLE predictions AS
 WITH results AS (
-    select a.feature_id, label as output_label, ranking
-    from (
-        select feature_id, ranking, label, ROW_NUMBER() OVER(PARTITION BY feature_id ORDER BY ranking desc) as rn
-        from output_rankings
-    ) as a
-    where rn = 1
+    SELECT a.feature_id, label AS output_label, ranking
+    FROM (
+        SELECT feature_id, ranking, label, ROW_NUMBER() OVER(PARTITION BY feature_id ORDER BY ranking DESC) AS rn
+        FROM output_rankings
+    ) AS a
+    WHERE rn = 1
 )
 SELECT results.feature_id, text, expected_label, output_label, ranking FROM results
 JOIN test_table ON test_table.feature_id = results.feature_id;
 
-select * from predictions;
+SELECT * FROM predictions;
 
 WITH
-    num_correct   AS (SELECT COUNT(*) as correct   FROM predictions WHERE expected_label = output_label),
-    num_incorrect AS (SELECT COUNT(*) as incorrect FROM predictions WHERE expected_label <> output_label)
-SELECT correct / (correct + incorrect) as success_rate, *
+    num_correct   AS (SELECT COUNT(*) AS correct   FROM predictions WHERE expected_label = output_label),
+    num_incorrect AS (SELECT COUNT(*) AS incorrect FROM predictions WHERE expected_label <> output_label)
+SELECT correct / (correct + incorrect) AS success_rate, *
 FROM num_correct, num_incorrect;
