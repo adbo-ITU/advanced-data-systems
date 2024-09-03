@@ -121,6 +121,7 @@ GROUP BY (feature_id, lp.label, label_probability)
 ORDER BY probability DESC;
 
 -- Select the class with the highest probability for each feature
+CREATE OR REPLACE TABLE predictions AS
 WITH results AS (
     select a.feature_id, label as output_label, probability
     from (
@@ -131,3 +132,12 @@ WITH results AS (
 )
 SELECT results.feature_id, text, expected_label, output_label, probability FROM results
 JOIN test_table ON test_table.feature_id = results.feature_id;
+
+select * from predictions;
+
+WITH
+    num_correct   AS (SELECT COUNT(*) as correct   FROM predictions WHERE expected_label = output_label),
+    num_incorrect AS (SELECT COUNT(*) as incorrect FROM predictions WHERE expected_label <> output_label)
+SELECT correct / (correct + incorrect) as success_rate, *
+FROM num_correct, num_incorrect;
+
