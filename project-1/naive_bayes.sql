@@ -105,12 +105,16 @@ FROM test_words tw
 JOIN label_probabilities lp
 LEFT JOIN word_label_probabilities wp ON wp.word = tw.word AND wp.label = lp.label
 JOIN total_words_in_classes tc ON tc.label = lp.label
-WHERE tw.word <> 'with' -- temporary for test example
+-- WHERE tw.word <> 'with' -- temporary for test example
 ORDER BY (lp.label, tw.word);
 
 -- For each feature and each class, compute the probability of feature belonging to that class
 CREATE OR REPLACE TABLE output_probabilities AS
-SELECT feature_id, lp.label, lp.label_probability * exp(sum(ln(probability))) AS probability -- product(..) doesn't exist, so this is one way to do it
+SELECT
+    feature_id, lp.label,
+    (CASE WHEN MIN(probability) = 0 THEN 0
+          WHEN MIN(probability) > 0 THEN lp.label_probability * exp(sum(ln(NULLIF(probability, 0))))
+    END) AS probability -- product(..) doesn't exist, so this is one way to do it
 FROM test_word_probabilities twp
 JOIN label_probabilities lp ON lp.label = twp.label
 GROUP BY (feature_id, lp.label, label_probability)
