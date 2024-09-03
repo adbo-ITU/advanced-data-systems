@@ -69,10 +69,19 @@ SELECT label, SUM(word_count) AS total_words_with_label
 FROM word_count_by_label
 GROUP BY label;
 
+-- todo: say why i use lower_bound function, goddamn float underflow..
+set min_number = 1e-322; -- found via mix of docs and trial and error
+CREATE OR REPLACE FUNCTION lower_bound(n FLOAT) RETURNS FLOAT AS $$
+    IFF($min_number > n, $min_number, n)
+$$;
+CREATE OR REPLACE FUNCTION laplace_smooth(word_count INTEGER, total_words_with_label INTEGER) RETURNS FLOAT AS $$
+    lower_bound((word_count + 1) / (total_words_with_label + $V))
+$$;
+
 -- For each word and class, compute the probability that the word belongs in that class
 CREATE OR REPLACE TABLE word_label_probabilities AS
 -- Uses Laplace smoothing (i.e. add-1)
-SELECT word, tot.label, (word_count + 1) / (total_words_with_label + $V) AS probability
+SELECT word, tot.label, laplace_smooth(word_count, total_words_with_label) AS probability, word_count, total_words_with_label
 FROM word_count_by_label wc
 JOIN total_words_in_classes tot ON wc.label = tot.label
 order by probability desc;
@@ -106,7 +115,7 @@ SELECT
     feature_id, tw.word, lp.label,
     -- if we haven't seen the word in a class, interpret it as if it had been
     -- seen 0 times during training with laplace smoothing
-    COALESCE(probability, 1 / (tc.total_words_with_label + $V)) as probability
+    COALESCE(probability, laplace_smooth(0, tc.total_words_with_label)) as probability
 FROM test_words tw
 JOIN label_probabilities lp
 LEFT JOIN word_label_probabilities wp ON wp.word = tw.word AND wp.label = lp.label
@@ -146,4 +155,3 @@ WITH
     num_incorrect AS (SELECT COUNT(*) as incorrect FROM predictions WHERE expected_label <> output_label)
 SELECT correct / (correct + incorrect) as success_rate, *
 FROM num_correct, num_incorrect;
-
