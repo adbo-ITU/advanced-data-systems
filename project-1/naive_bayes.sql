@@ -104,8 +104,8 @@ WHERE word NOT IN (
 CREATE OR REPLACE TABLE test_word_probabilities AS
 SELECT
     feature_id, tw.word, lp.label,
-    -- if we have unknown words, interpret it as if there were 0 of them in the
-    -- training set rather than NULL to make the smoothing work
+    -- if we haven't seen the word in a class, interpret it as if it had been
+    -- seen 0 times during training with laplace smoothing
     COALESCE(probability, 1 / (tc.total_words_with_label + $V)) as probability
 FROM test_words tw
 JOIN label_probabilities lp
@@ -114,28 +114,29 @@ JOIN total_words_in_classes tc ON tc.label = lp.label
 ORDER BY (lp.label, tw.word);
 
 -- For each feature and each class, compute the probability of feature belonging to that class
-CREATE OR REPLACE TABLE output_probabilities AS
+CREATE OR REPLACE TABLE output_rankings AS
 SELECT
     feature_id, lp.label,
-    (CASE WHEN MIN(probability) = 0 THEN 0
-          WHEN MIN(probability) > 0 THEN lp.label_probability * exp(sum(ln(NULLIF(probability, 0))))
-    END) AS probability -- product(..) doesn't exist, so this is one way to do it
+    (CASE WHEN MIN(probability) = 0 THEN '-inf'
+          -- Use log space to avoid underflow
+          WHEN MIN(probability) > 0 THEN ln(lp.label_probability) + sum(ln(NULLIF(probability, 0)))
+    END) AS ranking
 FROM test_word_probabilities twp
 JOIN label_probabilities lp ON lp.label = twp.label
 GROUP BY (feature_id, lp.label, label_probability)
-ORDER BY probability DESC;
+ORDER BY ranking DESC;
 
--- Select the class with the highest probability for each feature
+-- Select the class with the highest ranking for each feature
 CREATE OR REPLACE TABLE predictions AS
 WITH results AS (
-    select a.feature_id, label as output_label, probability
+    select a.feature_id, label as output_label, ranking
     from (
-        select feature_id, probability, label, ROW_NUMBER() OVER(PARTITION BY feature_id ORDER BY probability desc) as rn
-        from output_probabilities
+        select feature_id, ranking, label, ROW_NUMBER() OVER(PARTITION BY feature_id ORDER BY ranking desc) as rn
+        from output_rankings
     ) as a
     where rn = 1
 )
-SELECT results.feature_id, text, expected_label, output_label, probability FROM results
+SELECT results.feature_id, text, expected_label, output_label, ranking FROM results
 JOIN test_table ON test_table.feature_id = results.feature_id;
 
 select * from predictions;
