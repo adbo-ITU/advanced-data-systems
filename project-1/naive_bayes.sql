@@ -58,22 +58,29 @@ WHERE value <> '';
 -- Compute the total vocabular size
 set V = (SELECT COUNT(DISTINCT word) FROM words);
 
--- Description TODO
+-- For each word, count how many times that word appears in each class
 CREATE OR REPLACE TABLE word_count_by_label AS
 SELECT word, label, COUNT(*) AS word_count
 FROM words
 GROUP BY (word, label);
 
+-- Count how many words are in each class in total
 CREATE OR REPLACE TABLE total_words_in_classes AS
 SELECT label, SUM(word_count) AS total_words_with_label
 FROM word_count_by_label
 GROUP BY label;
 
--- todo: say why i use lower_bound function, goddamn float underflow..
+-- With a large vocabulary, words that show up very rarely will
+-- cause underflow, rounding the very small probabilities down
+-- to 0. It degrades prediction quality a lot. To fix this, we
+-- just too-small values up to the smallest possible float.
 set min_number = 1e-322; -- found via mix of docs and trial and error
 CREATE OR REPLACE FUNCTION lower_bound(n FLOAT) RETURNS FLOAT AS $$
     IFF($min_number > n, $min_number, n)
 $$;
+
+-- Utility function for Laplace smoothing to make it reusable and
+-- hide the lower_bound logic
 CREATE OR REPLACE FUNCTION laplace_smooth(word_count INTEGER, total_words_with_label INTEGER) RETURNS FLOAT AS $$
     lower_bound((word_count + 1) / (total_words_with_label + $V))
 $$;
