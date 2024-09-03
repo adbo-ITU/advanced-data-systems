@@ -81,7 +81,8 @@ order by probability desc;
 CREATE OR REPLACE TABLE test_table AS
 SELECT text, label AS expected_label, ROW_NUMBER()
   OVER (ORDER BY label DESC) AS feature_id
-FROM TABLE($test_table);
+FROM TABLE($test_table)
+WHERE label = 0 OR label = 4;
 
 -- Split the test dataset into individual words
 CREATE OR REPLACE TABLE test_words AS
