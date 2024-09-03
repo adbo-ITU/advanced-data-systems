@@ -94,6 +94,12 @@ FROM (
 LATERAL FLATTEN(split_words.words)
 WHERE value <> '';
 
+-- Remove words not seen in the training dataset
+DELETE FROM test_words 
+WHERE word NOT IN (
+    SELECT DISTINCT word FROM words
+);
+
 -- For each word, compute P(w_i | c_j) - the probability that the word belongs to each class
 CREATE OR REPLACE TABLE test_word_probabilities AS
 SELECT
@@ -105,7 +111,6 @@ FROM test_words tw
 JOIN label_probabilities lp
 LEFT JOIN word_label_probabilities wp ON wp.word = tw.word AND wp.label = lp.label
 JOIN total_words_in_classes tc ON tc.label = lp.label
--- WHERE tw.word <> 'with' -- temporary for test example
 ORDER BY (lp.label, tw.word);
 
 -- For each feature and each class, compute the probability of feature belonging to that class
