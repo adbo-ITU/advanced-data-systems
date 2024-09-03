@@ -18,7 +18,7 @@ set training_table = 'yelp_train';
 set test_table = 'yelp_test';
 
 -- For simplicity, we only focus on 1 and 5 star reviews - a binary classifier with the two extremes
-CREATE TABLE training_table AS
+CREATE OR REPLACE TABLE training_table AS
 SELECT *
 FROM TABLE($training_table)
 WHERE label = 0 OR label = 4;
@@ -58,50 +58,24 @@ WHERE value <> '';
 -- Compute the total vocabular size
 set V = (SELECT COUNT(DISTINCT word) FROM words);
 
--- One option - query per word/label
-CREATE OR REPLACE FUNCTION word_count(search_word VARCHAR, search_label INTEGER) RETURNS INTEGER AS $$
-    SELECT COUNT(*)
-    FROM words
-    WHERE label = search_label AND word = search_word
-$$;
-
--- Another option, use view grouped by word+label
-/*
-CREATE OR REPLACE TABLE word_counts AS
-SELECT word, label, COUNT(*) AS count
+-- Description TODO
+CREATE OR REPLACE TABLE word_count_by_label AS
+SELECT word, label, COUNT(*) AS word_count
 FROM words
 GROUP BY (word, label);
 
-select SUM(count) from word_counts group by label;
-select * from word_counts;
-*/
-
-CREATE OR REPLACE FUNCTION probability_of_word_given_class(search_word VARCHAR, search_label INTEGER) RETURNS INTEGER AS $$
-    -- Uses Laplace smoothing (i.e. add-1)
-    (SELECT word_count(search_word, search_label) + 1) / (
-        SELECT COUNT(*) + $V
-        FROM words
-        WHERE label = search_label
-    )
-$$;
+CREATE OR REPLACE TABLE total_words_in_classes AS
+SELECT label, SUM(word_count) AS total_words_with_label
+FROM word_count_by_label
+GROUP BY label;
 
 -- For each word and class, compute the probability that the word belongs in that class
 CREATE OR REPLACE TABLE word_label_probabilities AS
-SELECT word, label, probability_of_word_given_class(word, label) AS probability
-FROM words
-GROUP BY (word, label);
-
--- An alternative using an inner join
-/*
-WITH num_words_by_label AS (
-    SELECT label, COUNT(*) AS num_words_with_label
-    FROM words
-    GROUP BY label
-)
-SELECT word, words.label, word_count(word, num_words_by_label.label) / num_words_with_label as probability
-FROM words
-INNER JOIN num_words_by_label on num_words_by_label.label = words.label;
-*/
+-- Uses Laplace smoothing (i.e. add-1)
+SELECT word, tot.label, (word_count + 1) / (total_words_with_label + $V) AS probability
+FROM word_count_by_label wc
+JOIN total_words_in_classes tot ON wc.label = tot.label
+order by probability desc;
 
 -- Assign unique IDs to all test entries so we can relate the results later back to the inputs
 CREATE OR REPLACE TABLE test_table AS
@@ -119,12 +93,19 @@ FROM (
 LATERAL FLATTEN(split_words.words)
 WHERE value <> '';
 
--- For each word, compute all P(w_i | c_j) - the probability that the word belongs to each class
+-- For each word, compute P(w_i | c_j) - the probability that the word belongs to each class
 CREATE OR REPLACE TABLE test_word_probabilities AS
-SELECT feature_id, word, label, probability_of_word_given_class(word, label) AS probability
-FROM test_words, label_probabilities
--- WHERE word <> 'with' -- temporary for test example
-ORDER BY (label, word);
+SELECT
+    feature_id, tw.word, lp.label,
+    -- if we have unknown words, interpret it as if there were 0 of them in the
+    -- training set rather than NULL to make the smoothing work
+    COALESCE(probability, 1 / (tc.total_words_with_label + $V)) as probability
+FROM test_words tw
+JOIN label_probabilities lp
+LEFT JOIN word_label_probabilities wp ON wp.word = tw.word AND wp.label = lp.label
+JOIN total_words_in_classes tc ON tc.label = lp.label
+WHERE tw.word <> 'with' -- temporary for test example
+ORDER BY (lp.label, tw.word);
 
 -- For each feature and each class, compute the probability of feature belonging to that class
 CREATE OR REPLACE TABLE output_probabilities AS
