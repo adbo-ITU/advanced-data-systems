@@ -12,13 +12,14 @@ SELECT * FROM (
 )
 WHERE label = 0 OR label = 4;
 
-create or replace function idk(is_training BOOLEAN, label INTEGER, text TEXT)
+create or replace function train_and_classify(is_training BOOLEAN, label INTEGER, text TEXT)
 returns table (text TEXT, expected_label INTEGER, predicted_label INTEGER, ranking NUMBER)
 language python
 runtime_version=3.11
 packages = ('numpy')
 handler='CheetahUDTF'
 as $$
+from collections import defaultdict
 import numpy as np
 from functools import lru_cache
 import re
@@ -36,9 +37,14 @@ class Classifier:
         def probability_of_class(label):
             return sum(1 for l, _ in samples if l == label) / len(samples)
 
-        @lru_cache(maxsize=None)
-        def num_time_word_appears_in_class(word, label):
-            return sum(words.count(word) for l, words in samples if l == label)
+        def count_num_times_words_appears_in_classes():
+            num_times_word_appears_in_class = defaultdict(lambda: 0)
+
+            for label, words in samples:
+                for word in words:
+                    num_times_word_appears_in_class[(word, label)] += 1
+
+            return num_times_word_appears_in_class
 
         @lru_cache(maxsize=None)
         def num_words_in_class(label):
@@ -49,9 +55,12 @@ class Classifier:
             fraction = (word_count + 1) / (total_words_with_label + len(vocabulary))
             return max(fraction, min_value)
 
+        # have to precompute this table because it's wayyy too slow otherwise
+        num_time_word_appears_in_class = count_num_times_words_appears_in_classes()
+
         @lru_cache(maxsize=None)
         def calc_probability_of_word_given_class(word, label):
-            return laplace_smooth(num_time_word_appears_in_class(word, label), num_words_in_class(label))
+            return laplace_smooth(num_time_word_appears_in_class[(word, label)], num_words_in_class(label))
 
         self.samples = samples
         self.vocabulary = vocabulary
@@ -87,7 +96,15 @@ class CheetahUDTF:
             yield (text, expected_label, output_label, ranking)
 $$;
 
+CREATE OR REPLACE TABLE udtf_predictions AS
 SELECT results.*
 FROM dataset AS d,
-    TABLE(idk(d.is_training, d.label, d.text) over ()) AS results;
+    TABLE(train_and_classify(d.is_training, d.label, d.text) over ()) AS results;
 
+SELECT * FROM udtf_predictions;
+
+WITH
+    num_correct   AS (SELECT COUNT(*) AS correct   FROM udtf_predictions WHERE expected_label = predicted_label),
+    num_incorrect AS (SELECT COUNT(*) AS incorrect FROM udtf_predictions WHERE expected_label <> predicted_label)
+SELECT correct / (correct + incorrect) AS success_rate, *
+FROM num_correct, num_incorrect;
