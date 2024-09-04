@@ -100,7 +100,7 @@ SELECT results.*
 FROM dataset AS d,
     TABLE(train_and_classify(d.is_training, d.label, d.text) over ()) AS results;
 
-SELECT * FROM udtf_predictions;
+-- SELECT * FROM udtf_predictions;
 
 WITH
     num_correct   AS (SELECT COUNT(*) AS correct   FROM udtf_predictions WHERE expected_label = predicted_label),
