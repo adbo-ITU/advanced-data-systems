@@ -58,7 +58,6 @@ class Classifier:
         # have to precompute this table because it's wayyy too slow otherwise
         num_time_word_appears_in_class = count_num_times_words_appears_in_classes()
 
-        @lru_cache(maxsize=None)
         def calc_probability_of_word_given_class(word, label):
             return laplace_smooth(num_time_word_appears_in_class[(word, label)], num_words_in_class(label))
 
