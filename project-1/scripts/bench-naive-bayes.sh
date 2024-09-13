@@ -21,7 +21,9 @@ do :
     now=$(date +"%Y-%m-%d %H:%M:%S")
     echo -e "[$now] benching $file (repetition $repetition)"
 
-    { time $binary -f $file -o output_format=csv; } &> "$outdir/$outfile"
+    echo "runner=$filename, repetition=$repetition" > "$outdir/$outfile"
+
+    { time $binary -f $file -o output_format=csv; } >> "$outdir/$outfile" 2>&1
 
     now=$(date +"%Y-%m-%d %H:%M:%S")
     echo -e "[$now] finished (wrote to $outfile)"
