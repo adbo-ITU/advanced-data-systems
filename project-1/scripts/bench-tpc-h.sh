@@ -4,7 +4,7 @@ set -e
 
 timestamp=$(date +%s)
 
-queries=("q18")
+queries=("q1" "q5" "q18")
 scaling_factors=("SF1" "SF10" "SF100" "SF1000")
 warehouses=("ANIMAL_TASK_WH")
 
@@ -13,7 +13,7 @@ binary="/Applications/SnowSQL.app/Contents/MacOS/snowsql"
 outdir="bench-out/bench-tpc-h-$timestamp"
 mkdir -p $outdir
 
-for repetition in {1..5}
+for repetition in {1..4}
 do :
   for warehouse in "${warehouses[@]}"
   do :
