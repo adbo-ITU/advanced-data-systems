@@ -6,7 +6,7 @@ timestamp=$(date +%s)
 
 queries=("q1" "q5" "q18")
 scaling_factors=("SF1" "SF10" "SF100" "SF1000")
-warehouses=("ANIMAL_TASK_WH")
+warehouses=("CHEETAH_WH_L" "CHEETAH_WH_M" "CHEETAH_WH_S" "CHEETAH_WH_XS")
 
 binary="/Applications/SnowSQL.app/Contents/MacOS/snowsql"
 
