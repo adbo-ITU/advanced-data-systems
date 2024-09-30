@@ -1,6 +1,8 @@
 -- I substituted [QUANTITY] with 312
 -- Validation: success (with 300)
 
+ALTER SESSION SET USE_CACHED_RESULT=FALSE;
+
 select c_name,
        c_custkey,
        o_orderkey,

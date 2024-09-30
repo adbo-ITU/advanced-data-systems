@@ -1,6 +1,8 @@
 -- Substituted [DELTA] with 90
 -- Validation: success
 
+ALTER SESSION SET USE_CACHED_RESULT=FALSE;
+
 select   l_returnflag,
          l_linestatus,
          sum(l_quantity)                               as sum_qty,

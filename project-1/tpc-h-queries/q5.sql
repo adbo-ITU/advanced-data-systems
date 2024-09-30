@@ -2,6 +2,8 @@
 -- Substituted [DATE] with 1994-01-01
 -- Validation: success
 
+ALTER SESSION SET USE_CACHED_RESULT=FALSE;
+
 select   n_name,
          sum(l_extendedprice * (1 - l_discount)) as revenue
 from     customer,
