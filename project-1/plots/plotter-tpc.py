@@ -1,4 +1,5 @@
 import matplotlib.pyplot as plt
+import csv
 from dataclasses import dataclass
 import re
 from itertools import groupby
@@ -52,9 +53,10 @@ class Measurement:
     warehouse: str
     repetition: str
     scaling_factor: str
+    bytes_spilled_local: float
 
     @staticmethod
-    def from_file(file: str):
+    def from_file(file: str, query_history):
         with open(file) as f:
             lines = f.readlines()
             content = ''.join(lines)
@@ -66,17 +68,30 @@ class Measurement:
             r"Time Elapsed: (?P<seconds>[\d\.]+)s\nGoodbye!", content).groupdict()
         elapsed = float(time_match["seconds"])
 
+        config_key = Measurement.make_config_key(config["query"], config["warehouse"], config["scaling_factor"])
+
+        if config_key not in query_history:
+            raise Exception(f"Unknown configuration: {config_key}")
+
+        qh = query_history[config_key]
+
         return Measurement(
             query=config["query"],
             elapsed_time=elapsed,
             warehouse=config["warehouse"],
             repetition=config["repetition"],
-            scaling_factor=config["scaling_factor"]
+            scaling_factor=config["scaling_factor"],
+            bytes_spilled_local=float(qh["BYTES_SPILLED_TO_LOCAL_STORAGE"]),
         )
 
+
+    @staticmethod
+    def make_config_key(query: str, warehouse: str, scaling_factor: str):
+        q = f'Q{int(query.replace("q", "")):02}'
+        return f"{q}-{warehouse}-{scaling_factor}"
+
     def configuration_key(self):
-        q = f'Q{int(self.query.replace("q", "")):02}'
-        return f"{q}-{self.scaling_factor}-{self.warehouse}"
+        return Measurement.make_config_key(self.query, self.warehouse, self.scaling_factor)
 
 
 @dataclass
@@ -88,11 +103,46 @@ class Configuration:
         return sum([getattr(m, key) for m in self.measurements]) / len(self.measurements)
 
 
+def read_query_history():
+    configs = {}
+
+    # SELECT *
+    # FROM  snowflake.account_usage.query_history
+    # WHERE
+    #   start_time::date > dateadd('days', -1, current_date)
+    #   AND user_name = 'CHEETAH'
+    #   AND SCHEMA_NAME like 'TPCH_SF%'
+    #   AND QUERY_TEXT not like 'ALTER SESSION%'
+    # ORDER BY bytes_spilled_to_local_storage, warehouse_size DESC
+    # LIMIT 200;
+
+    with open('./plots/query_history.csv', newline='') as csvfile:
+        reader = csv.DictReader(csvfile)
+        for row in reader:
+            query = ""
+            if row['QUERY_TEXT'].startswith("select   l_returnflag"):
+                query = "Q01"
+            elif row['QUERY_TEXT'].startswith("select   n_name"):
+                query = "Q05"
+            elif row['QUERY_TEXT'].startswith("select c_name"):
+                query = "Q18"
+            else:
+                raise Exception("Unknown query")
+
+            scaling_factor = row['SCHEMA_NAME'].replace("TPCH_", "")
+            config_key = f"{query}-{row['WAREHOUSE_NAME']}-{scaling_factor}"
+
+            configs[config_key] = row
+
+    return configs
+
+
 def read_data(folder):
+    query_history = read_query_history()
     rows = []
     for entry in os.listdir(folder):
         # try:
-        row = Measurement.from_file(os.path.join(folder, entry))
+        row = Measurement.from_file(os.path.join(folder, entry), query_history)
         rows.append(row)
         # except:
         #     print(f"Error processing {entry}")
@@ -107,6 +157,8 @@ def plot_latency(configs: list[Configuration]):
 
     for q in QUERY_LABELS.keys():
         plt.figure()
+        ax = plt.gca()
+        ax.set_aspect(1.2)
 
         for i, wh in enumerate(WAREHOUSES):
             cs = [c for c in configs if c.measurements[0].query == q and c.measurements[0].warehouse == wh]
@@ -120,7 +172,7 @@ def plot_latency(configs: list[Configuration]):
             plt.loglog(xs, ys, f'-{marker}',
                      markerfacecolor=facecolor, label=WAREHOUSE_LABELS[wh])
 
-        plt.title(f"{QUERY_LABELS[q]} Latency for Different Warehouse sizes and Scaling Factors")
+        plt.title(f"{QUERY_LABELS[q]} latency")
 
         plt.ylim(top=y_max)
         plt.legend()
@@ -180,44 +232,51 @@ def plot_latency(configs: list[Configuration]):
 
         save_plot("tpc-h-latency-" + scaling_factor)
 
-curl 'https://cykelgear.dk/reset-password' \
-  -H 'accept: application/json, text/plain, */*' \
-  -H 'accept-language: en-GB,en-US;q=0.9,en;q=0.8,da;q=0.7' \
-  -H 'cache-control: no-cache' \
-  -H 'content-type: application/json' \
-  -H 'cookie: clerk_visitor=e906ae5cebcaa8cc54978677aa2964e8; CookieInformationConsent=%7B%22website_uuid%22%3A%220469e9fc-0335-4edc-869b-a8991fee915a%22%2C%22timestamp%22%3A%222024-04-25T06%3A51%3A28.448Z%22%2C%22consent_url%22%3A%22https%3A%2F%2Fcykelgear.dk%2F%22%2C%22consent_website%22%3A%22cykelgear.dk%22%2C%22consent_domain%22%3A%22cykelgear.dk%22%2C%22user_uid%22%3A%22cbcb68bb-4148-4097-b12b-149312635a74%22%2C%22consents_approved%22%3A%5B%22cookie_cat_necessary%22%2C%22cookie_cat_functional%22%2C%22cookie_cat_statistic%22%2C%22cookie_cat_marketing%22%2C%22cookie_cat_unclassified%22%5D%2C%22consents_denied%22%3A%5B%5D%2C%22user_agent%22%3A%22Mozilla%2F5.0%20%28Macintosh%3B%20Intel%20Mac%20OS%20X%2010_15_7%29%20AppleWebKit%2F537.36%20%28KHTML%2C%20like%20Gecko%29%20Chrome%2F124.0.0.0%20Safari%2F537.36%22%7D; include_vat=true; XSRF-TOKEN=eyJpdiI6IjRKVGdnWFdvRWEyOEptbUViY3BpNVE9PSIsInZhbHVlIjoiditKSUtYb215Ym9EUG5FTUNsV3RJMXdhSnRZR1FVdlFHczZDTVZ6SEx4MGtFNVBhc2JNTjV4Rm5OQjBadWw1MnN6WHJXOU9pSHNrdDBMcnYwbU5NTTBzaGdoSWNhRzd2cjgybGZOZUpBaDRaYStFWGVlaFNjV3pGdzdxY1BwT3ciLCJtYWMiOiJiNGZmNjZjOGM2YTRmZWUwYzJjYmU1ZWMyYjUzZmFkM2NkMWYyYjUxNzBkMDZlYzE1ZWM1ZGZhZTI4Yzc3ODdlIiwidGFnIjoiIn0%3D; cykelgear_session=eyJpdiI6InpBbW40dkI4dER5ZEZnL2hrbXFuWFE9PSIsInZhbHVlIjoiTFcwYVAxWFdGNWF1MzhFclJ0Rm1CbVpOY08xZGdmL2ZFamVNdVBOQXlia2ZjbVNlSHo5R3BGV1FjbDJKZjVQeHBNckM4Tm5IWm9MRWRiSWVrL0FWT2pNeFViNGZ5ZFl2Q1dBTmVqUHpFckFqWVV0REkwVTZSRG91U3dwWmZVbEsiLCJtYWMiOiIzNzYyYjM2MTM3MmRmMDUxNGMyNTFkYjc4M2ZlOTVmMTVkNDA5NDdiY2Y2Y2U5MDQyN2FkN2M4N2UyMjIzYjAzIiwidGFnIjoiIn0%3D' \
-  -H 'dnt: 1' \
-  -H 'origin: https://cykelgear.dk' \
-  -H 'pragma: no-cache' \
-  -H 'priority: u=1, i' \
-  -H 'referer: https://cykelgear.dk/password-reset/1081ca7044a3fd6b26b885d024ab8486906cabd8312a3faa978ebdf3f1e93fae?email=avborup+cykelgear@gmail.com' \
-  -H 'sec-ch-ua: "Chromium";v="129", "Not=A?Brand";v="8"' \
-  -H 'sec-ch-ua-mobile: ?0' \
-  -H 'sec-ch-ua-platform: "macOS"' \
-  -H 'sec-fetch-dest: empty' \
-  -H 'sec-fetch-mode: cors' \
-  -H 'sec-fetch-site: same-origin' \
-  -H 'user-agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36' \
-  -H 'x-requested-with: XMLHttpRequest' \
-  -H 'x-xsrf-token: eyJpdiI6IjRKVGdnWFdvRWEyOEptbUViY3BpNVE9PSIsInZhbHVlIjoiditKSUtYb215Ym9EUG5FTUNsV3RJMXdhSnRZR1FVdlFHczZDTVZ6SEx4MGtFNVBhc2JNTjV4Rm5OQjBadWw1MnN6WHJXOU9pSHNrdDBMcnYwbU5NTTBzaGdoSWNhRzd2cjgybGZOZUpBaDRaYStFWGVlaFNjV3pGdzdxY1BwT3ciLCJtYWMiOiJiNGZmNjZjOGM2YTRmZWUwYzJjYmU1ZWMyYjUzZmFkM2NkMWYyYjUxNzBkMDZlYzE1ZWM1ZGZhZTI4Yzc3ODdlIiwidGFnIjoiIn0=' \
-  --data-raw '{"token":"1081ca7044a3fd6b26b885d024ab8486906cabd8312a3faa978ebdf3f1e93fae","customers_email_address":"avborup+cykelgear@gmail.com","customers_password":"Kptd$2%D3f4CQd","customers_password_confirmation":"Kptd$2%D3f4CQd","isDirty":true,"errors":{},"hasErrors":false,"processing":false,"progress":null,"wasSuccessful":false,"recentlySuccessful":false,"__rememberable":true}'
+def plot_bytes_spilled(configs: list[Configuration]):
+    for q in QUERY_LABELS.keys():
+        plt.figure()
+        ax = plt.gca()
 
+        for i, wh in enumerate(WAREHOUSES):
+            cs = [c for c in configs if c.measurements[0].query == q and c.measurements[0].warehouse == wh]
+            cs.sort(key=lambda x: x.measurements[0].scaling_factor)
 
+            xs = [SCALING_FACTOR_NUMS[c.measurements[0].scaling_factor]
+                  for c in cs]
+            ys = [c.average_by("bytes_spilled_local") * 1e-9 for c in cs]
+
+            marker, facecolor = MARKERS[i]
+            plt.plot(xs, ys, f'-{marker}',
+                     markerfacecolor=facecolor, label=WAREHOUSE_LABELS[wh])
+
+        ax.set_yscale('symlog')
+        ax.set_xscale('symlog')
+
+        plt.title(f"Bytes spilled to local storage by {QUERY_LABELS[q]}")
+
+        plt.legend()
+        plt.ylabel("Bytes spilled to local storage (GB)")
+        plt.xlabel("Scaling Factor")
+
+        save_plot("tpc-h-bytes-" + q)
 
 def make_results_table(configs: list[Configuration]):
     lines = [
         r"\begin{tabular}{llllll}",
         r"\toprule",
-        r"Query & Scaling Factor & Warehouse & Avg. Latency & Min. Latency & Max Latency \\",
+        r"Query & Warehouse & Scaling Factor & Avg. Latency & Min. Latency & Max Latency \\",
     ]
 
     pq = None
+    pw = None
     for c in configs:
         q = c.measurements[0].query
+        w = c.measurements[0].warehouse
 
-        if pq != q:
+        if pq != q or pw != w:
             lines.append(r"\midrule")
             pq = q
+            pw = w
 
         time = c.average_by('elapsed_time')
         query = QUERY_LABELS[q]
@@ -228,7 +287,7 @@ def make_results_table(configs: list[Configuration]):
         max_time = max(m.elapsed_time for m in c.measurements)
 
         lines.append(
-            rf"{query} & {sf} & {warehouse} & {format_time(time)} & {format_time(min_time)} & {format_time(max_time)} \\")
+            rf"{query} & {warehouse} & {sf} & {format_time(time)} & {format_time(min_time)} & {format_time(max_time)} \\")
 
     lines.append(r"""\bottomrule\end{tabular}""")
 
@@ -255,3 +314,4 @@ if __name__ == "__main__":
 
     make_results_table(configurations)
     plot_latency(configurations)
+    plot_bytes_spilled(configurations)
