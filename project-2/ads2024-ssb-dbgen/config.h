@@ -101,6 +101,7 @@
 #endif /* LINUX */
 
 #ifdef MAC
+#include <unistd.h>
 #define _POSIX_SOURCE
 #define STDLIB_HAS_GETOPT
 #endif /* MAC */
