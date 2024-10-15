@@ -32,3 +32,29 @@ Profiling overhead:
 
 >[!NOTE]
 > **TODO**
+
+## Generate SSB data
+
+- Build `ads2024-ssb-dbgen`.
+- Run `./dbgen -s 1 -T a` to generate all tables. Vary `-s` for different scale factors.
+- Outputs a `.tbl` file per table.
+
+Then, to import into DuckDB:
+
+- Initialise schema via CLI: `./build/release/duckdb`, then `.read ../sql/ssb-schema.sql`
+- Import each table:
+  ```sql
+  COPY part FROM '../ads2024-ssb-dbgen/part.tbl';
+  COPY supplier FROM '../ads2024-ssb-dbgen/supplier.tbl';
+  COPY customer FROM '../ads2024-ssb-dbgen/customer.tbl';
+  COPY date FROM '../ads2024-ssb-dbgen/date.tbl';
+  COPY lineorder FROM '../ads2024-ssb-dbgen/lineorder.tbl';
+  ```
+
+## Run benchmarks
+
+- All our SSB benchmarks at once: `build/release/benchmark/benchmark_runner --log=out.log "benchmark/ssb/benchmarks/.*"`
+- List benchmarks: `build/release/benchmark/benchmark_runner --list | grep ssb`
+- Generate all benchmark files automatically: `./benchmark/ssb/gen-benchmarks.sh`
+- Show profile for a bench: `build/release/benchmark/benchmark_runner --profile benchmark/ssb/benchmarks/sf10/q1.1.benchmark`
+- Control the number of threads used with `--threads=n` flag
