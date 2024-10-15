@@ -41,7 +41,7 @@ CREATE TABLE customer
 
 CREATE TABLE date
 (
-    d_datekey          UINTEGER,
+    d_datekey          DATE,
     d_date             VARCHAR,
     d_dayofweek        VARCHAR,
     d_month            VARCHAR,
@@ -68,7 +68,7 @@ CREATE TABLE lineorder
     lo_custkey       UINTEGER,
     lo_partkey       UINTEGER,
     lo_suppkey       UINTEGER,
-    lo_orderdate     UINTEGER,
+    lo_orderdate     DATE,
     lo_orderpriority VARCHAR,
     lo_shippriority  VARCHAR,
     lo_quantity      UTINYINT,
@@ -78,7 +78,7 @@ CREATE TABLE lineorder
     lo_revenue       UINTEGER,
     lo_supplycost    UINTEGER,
     lo_tax           UTINYINT,
-    lo_commitdate    UINTEGER,
+    lo_commitdate    DATE,
     lo_shipmode      VARCHAR,
     PRIMARY KEY (lo_orderkey, lo_linenumber)
 );
