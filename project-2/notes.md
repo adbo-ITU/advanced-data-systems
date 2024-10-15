@@ -58,3 +58,34 @@ Then, to import into DuckDB:
 - Generate all benchmark files automatically: `./benchmark/ssb/gen-benchmarks.sh`
 - Show profile for a bench: `build/release/benchmark/benchmark_runner --profile benchmark/ssb/benchmarks/sf10/q1.1.benchmark`
 - Control the number of threads used with `--threads=n` flag
+
+Steps to set up benchmark (fresh pc, duckdb and this repo just cloned):
+```bash
+# Compile
+$ cd duckdb
+$ GEN=ninja BUILD_BENCHMARK=1 BUILD_TPCH=1 make
+...
+$ cd ../ads2024-ssb-dbgen
+$ make
+
+# Prep data folders
+$ mkdir ../duckdb/benchmark/ssb/data/sf1
+$ mkdir ../duckdb/benchmark/ssb/data/sf10
+$ mkdir ../duckdb/benchmark/ssb/data/sf100
+
+# Generate data
+$ ./dbgen -s 1 -T a
+$ mv *.tbl ../duckdb/benchmark/ssb/data/sf1
+$ ./dbgen -s 10 -T a
+$ mv *.tbl ../duckdb/benchmark/ssb/data/sf10
+$ ./dbgen -s 100 -T a
+$ mv *.tbl ../duckdb/benchmark/ssb/data/sf100
+
+# Generate benchmarks
+$ cd ../duckdb
+$ ./benchmark/ssb/gen-benchmarks.sh
+...
+
+# Run benchmarks
+$ build/release/benchmark/benchmark_runner "benchmark/ssb/benchmarks/.*"
+```
