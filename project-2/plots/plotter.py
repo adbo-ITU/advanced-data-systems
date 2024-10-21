@@ -143,4 +143,12 @@ if __name__ == "__main__":
         sorted(measurements, key=lambda x: x.configuration_key()), lambda x: x.configuration_key())]
     configurations.sort(key=lambda x: x.key)
 
+    REPETITIONS = 5
+    for c in configurations:
+        if len(c.measurements) != REPETITIONS:
+            print(f"Missing measurements for {c.key}, only has {len(c.measurements)}")
+            break
+    else:
+        print(f"All configurations have {REPETITIONS} repetitions, good")
+
     plot_latency(configurations)
