@@ -28,6 +28,7 @@ class Measurement:
     query: str
     threads: str
     scaling_factor: str
+    elapsed_time: float
     profile: Any
 
     @staticmethod
@@ -51,6 +52,7 @@ class Measurement:
                 query=q_str.replace("q", ""),
                 scaling_factor=sf_str.replace("sf", ""),
                 threads=t_str.replace("threads", ""),
+                elapsed_time=profile["operator_timing"],
                 profile=profile
             ))
 
@@ -64,6 +66,9 @@ class Measurement:
 class Configuration:
     key: str
     measurements: list[Measurement]
+
+    def average_by(self, key: str):
+        return sum([getattr(m, key) for m in self.measurements]) / len(self.measurements)
 
 
 def read_data(file):
