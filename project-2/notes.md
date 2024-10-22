@@ -35,6 +35,9 @@ Profiling overhead:
 
 ## Generate SSB data
 
+>[!NOTE]
+> We now use the `ssbgen` extension for DuckDB due to issues with the large intermediate files that the below method requires. The below is the old way.
+
 - Build `ads2024-ssb-dbgen`.
 - Run `./dbgen -s 1 -T a` to generate all tables. Vary `-s` for different scale factors.
 - Outputs a `.tbl` file per table.
@@ -63,29 +66,14 @@ Steps to set up benchmark (fresh pc, duckdb and this repo just cloned):
 ```bash
 # Compile
 $ cd duckdb
-$ GEN=ninja BUILD_BENCHMARK=1 BUILD_TPCH=1 make
+$ GEN=ninja BUILD_BENCHMARK=1 EXTENSION_CONFIGS="extension_config.cmake" make
 ...
-$ cd ../ads2024-ssb-dbgen
-$ make
-
-# Prep data folders
-$ mkdir ../duckdb/benchmark/ssb/data/sf1
-$ mkdir ../duckdb/benchmark/ssb/data/sf10
-$ mkdir ../duckdb/benchmark/ssb/data/sf100
-
-# Generate data
-$ ./dbgen -s 1 -T a
-$ mv *.tbl ../duckdb/benchmark/ssb/data/sf1
-$ ./dbgen -s 10 -T a
-$ mv *.tbl ../duckdb/benchmark/ssb/data/sf10
-$ ./dbgen -s 100 -T a
-$ mv *.tbl ../duckdb/benchmark/ssb/data/sf100
 
 # Generate benchmarks
 $ cd ../duckdb
 $ ./benchmark/ssb/gen-benchmarks.sh
 ...
 
-# Run benchmarks
-$ build/release/benchmark/benchmark_runner "benchmark/ssb/benchmarks/.*"
+# Run benchmarks - will use ssbgen to generate tables
+$ build/release/benchmark/benchmark_runner --log=benchmark.log --detailed-profile --disable-timeout "benchmark/ssb/benchmarks/.*"
 ```
