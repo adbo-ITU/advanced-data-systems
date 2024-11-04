@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from itertools import groupby
 import sys
 import pathlib
+import numpy as np
 
 
 work_dir = pathlib.Path(__file__).parent.resolve()
@@ -126,6 +127,33 @@ def plot_latency(configs: list[Configuration]):
         save_plot("latency-q" + q)
 
 
+def plot_all_latencies(configs: list[Configuration]):
+    for scaling_factor in get_scaling_factors(configs):
+        fig = plt.subplots(layout="constrained")
+        ax = plt.gca()
+
+        x = np.arange(len(get_queries(configs)))  # the label locations
+        width = 1  # the width of the bars
+
+        cs = [c for c in configs if c.threads ==
+              4 and c.scaling_factor == scaling_factor]
+        cs.sort(key=lambda x: x.query)
+
+        assert len(cs) == len(get_queries(configs))
+
+        ys = [c.average_by("elapsed_time") for c in cs]
+
+        ax.bar(x, ys, width - 0.3, zorder=3, color="lightblue",
+               edgecolor="black", linewidth=2, hatch="...")
+
+        ax.grid(zorder=0)
+        ax.set_ylabel('Latency (seconds)')
+        ax.set_title(f'Query latencies (scaling factor {scaling_factor}, 4 threads)')
+        ax.set_xticks(x, [f"Q{q}" for q in sorted(get_queries(configs))])
+
+        save_plot("all-latency-" + str(scaling_factor))
+
+
 def read_data(file):
     rows = Measurement.from_file(file)
     print(f"Loaded {len(rows)} experiments")
@@ -146,9 +174,11 @@ if __name__ == "__main__":
     REPETITIONS = 5
     for c in configurations:
         if len(c.measurements) != REPETITIONS:
-            print(f"Missing measurements for {c.key}, only has {len(c.measurements)}")
+            print(
+                f"Missing measurements for {c.key}, only has {len(c.measurements)}")
             break
     else:
         print(f"All configurations have {REPETITIONS} repetitions, good")
 
     plot_latency(configurations)
+    plot_all_latencies(configurations)
