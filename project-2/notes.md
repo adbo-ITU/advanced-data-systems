@@ -30,6 +30,17 @@ Profiling overhead:
 > What are their pros / cons in terms of implementation complexity and benchmark flexibility?
 > Hint: You can get inspiration from the TPC-H and Clickbench implementations under DuckDB.
 
+- DuckDB has a benchmark system
+  - Benchmarks written in `.benchmark` files
+    - Configurable and separate steps for loading data and running queries
+    - Caching built-in
+    - Define a parameterised template in `.benchmark.in` file and define parameters in `.benchmark` files
+  - Or utilise C++ and CMake to define classes for benchmarks
+    - Easier to write custom logic and more flexible
+    - But more complex to write for simple benchmarks
+    - And must implement things yourserf that the `.benchmark` system does for you (i.e. caching)
+  - In either case, benchmarks are being run using their `benchmark_runner`, which can provide timings, profile information, and more.
+
 >[!NOTE]
 > **TODO**
 
