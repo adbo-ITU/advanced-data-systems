@@ -18,7 +18,7 @@ public class Main {
                 .withUdfJarOf(Main.class);
 
         Collection<Tuple2<String, Integer>> wordcounts = planBuilder
-                .readTextFile(path).withName("Load file")
+                .readParquet(path).withName("Load file")
 
                 /* Split each line by non-word characters */
                 .flatMap(line -> Arrays.asList(line.split("\\W+")))
