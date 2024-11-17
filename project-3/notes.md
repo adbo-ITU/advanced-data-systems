@@ -57,3 +57,169 @@ INNER JOIN customer AS c ON c.c_custkey = lo.lo_custkey
 INNER JOIN supplier AS s ON s.s_suppkey = lo.lo_suppkey
 INNER JOIN part AS p ON p.p_partkey = lo.lo_partkey;
 ```
+The resulting Parquet schema is:
+```json
+{
+  "type" : "record",
+  "name" : "duckdb_schema",
+  "fields" : [ {
+    "name" : "lo_orderkey",
+    "type" : [ "null", "int" ],
+    "default" : null
+  }, {
+    "name" : "lo_linenumber",
+    "type" : [ "null", "int" ],
+    "default" : null
+  }, {
+    "name" : "lo_custkey",
+    "type" : [ "null", "int" ],
+    "default" : null
+  }, {
+    "name" : "lo_partkey",
+    "type" : [ "null", "int" ],
+    "default" : null
+  }, {
+    "name" : "lo_suppkey",
+    "type" : [ "null", "int" ],
+    "default" : null
+  }, {
+    "name" : "lo_orderdate",
+    "type" : [ "null", {
+      "type" : "int",
+      "logicalType" : "date"
+    } ],
+    "default" : null
+  }, {
+    "name" : "lo_orderpriority",
+    "type" : [ "null", "string" ],
+    "default" : null
+  }, {
+    "name" : "lo_shippriority",
+    "type" : [ "null", "string" ],
+    "default" : null
+  }, {
+    "name" : "lo_quantity",
+    "type" : [ "null", "int" ],
+    "default" : null
+  }, {
+    "name" : "lo_extendedprice",
+    "type" : [ "null", "int" ],
+    "default" : null
+  }, {
+    "name" : "lo_ordtotalprice",
+    "type" : [ "null", "int" ],
+    "default" : null
+  }, {
+    "name" : "lo_discount",
+    "type" : [ "null", "int" ],
+    "default" : null
+  }, {
+    "name" : "lo_revenue",
+    "type" : [ "null", "int" ],
+    "default" : null
+  }, {
+    "name" : "lo_supplycost",
+    "type" : [ "null", "int" ],
+    "default" : null
+  }, {
+    "name" : "lo_tax",
+    "type" : [ "null", "int" ],
+    "default" : null
+  }, {
+    "name" : "lo_commitdate",
+    "type" : [ "null", {
+      "type" : "int",
+      "logicalType" : "date"
+    } ],
+    "default" : null
+  }, {
+    "name" : "lo_shipmode",
+    "type" : [ "null", "string" ],
+    "default" : null
+  }, {
+    "name" : "c_name",
+    "type" : [ "null", "string" ],
+    "default" : null
+  }, {
+    "name" : "c_address",
+    "type" : [ "null", "string" ],
+    "default" : null
+  }, {
+    "name" : "c_city",
+    "type" : [ "null", "string" ],
+    "default" : null
+  }, {
+    "name" : "c_nation",
+    "type" : [ "null", "string" ],
+    "default" : null
+  }, {
+    "name" : "c_region",
+    "type" : [ "null", "string" ],
+    "default" : null
+  }, {
+    "name" : "c_phone",
+    "type" : [ "null", "string" ],
+    "default" : null
+  }, {
+    "name" : "c_mktsegment",
+    "type" : [ "null", "string" ],
+    "default" : null
+  }, {
+    "name" : "s_name",
+    "type" : [ "null", "string" ],
+    "default" : null
+  }, {
+    "name" : "s_address",
+    "type" : [ "null", "string" ],
+    "default" : null
+  }, {
+    "name" : "s_city",
+    "type" : [ "null", "string" ],
+    "default" : null
+  }, {
+    "name" : "s_nation",
+    "type" : [ "null", "string" ],
+    "default" : null
+  }, {
+    "name" : "s_region",
+    "type" : [ "null", "string" ],
+    "default" : null
+  }, {
+    "name" : "s_phone",
+    "type" : [ "null", "string" ],
+    "default" : null
+  }, {
+    "name" : "p_name",
+    "type" : [ "null", "string" ],
+    "default" : null
+  }, {
+    "name" : "p_mfgr",
+    "type" : [ "null", "string" ],
+    "default" : null
+  }, {
+    "name" : "p_category",
+    "type" : [ "null", "string" ],
+    "default" : null
+  }, {
+    "name" : "p_brand1",
+    "type" : [ "null", "string" ],
+    "default" : null
+  }, {
+    "name" : "p_color",
+    "type" : [ "null", "string" ],
+    "default" : null
+  }, {
+    "name" : "p_type",
+    "type" : [ "null", "string" ],
+    "default" : null
+  }, {
+    "name" : "p_size",
+    "type" : [ "null", "int" ],
+    "default" : null
+  }, {
+    "name" : "p_container",
+    "type" : [ "null", "string" ],
+    "default" : null
+  } ]
+}
+```
