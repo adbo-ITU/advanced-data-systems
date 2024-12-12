@@ -1,0 +1,28 @@
+<component name="libraryTable">
+  <library name="jars">
+    <CLASSES>
+      <root url="file://$PROJECT_DIR$/../../../incubator-wayang/wayang-assembly/target/apache-wayang-assembly-0.7.1-incubating-dist/wayang-0.7.1/jars" />
+      <root url="file://$PROJECT_DIR$/../../../incubator-wayang/wayang-assembly/target/apache-wayang-assembly-0.7.1-incubating-dist/wayang-0.7.1/libs" />
+      <root url="file://$PROJECT_DIR$/../../../incubator-wayang/wayang-assembly/target/apache-wayang-assembly-0.7.1-incubating-dist/wayang-0.7.1/conf" />
+      <root url="file://$PROJECT_DIR$/../../../libs/spark-3.2.0-bin-hadoop3.2/jars" />
+      <root url="file://$PROJECT_DIR$/../../../libs/hadoop-3.4.0/share/hadoop/mapreduce" />
+      <root url="file://$PROJECT_DIR$/../../../libs/hadoop-3.4.0/share/hadoop/hdfs" />
+      <root url="file://$PROJECT_DIR$/../../../libs/hadoop-3.4.0/share/hadoop/mapreduce" />
+    </CLASSES>
+    <JAVADOC />
+    <SOURCES>
+      <root url="file://$PROJECT_DIR$/../../../incubator-wayang/wayang-assembly/target/apache-wayang-assembly-0.7.1-incubating-dist/wayang-0.7.1/libs" />
+      <root url="file://$PROJECT_DIR$/../../../libs/spark-3.2.0-bin-hadoop3.2/jars" />
+      <root url="file://$PROJECT_DIR$/../../../libs/hadoop-3.4.0/share/hadoop/hdfs/jdiff" />
+      <root url="file://$PROJECT_DIR$/../../../libs/hadoop-3.4.0/share/hadoop/mapreduce/jdiff" />
+    </SOURCES>
+    <jarDirectory url="file://$PROJECT_DIR$/../../../incubator-wayang/wayang-assembly/target/apache-wayang-assembly-0.7.1-incubating-dist/wayang-0.7.1/jars" recursive="false" />
+    <jarDirectory url="file://$PROJECT_DIR$/../../../incubator-wayang/wayang-assembly/target/apache-wayang-assembly-0.7.1-incubating-dist/wayang-0.7.1/libs" recursive="false" />
+    <jarDirectory url="file://$PROJECT_DIR$/../../../libs/hadoop-3.4.0/share/hadoop/hdfs" recursive="false" />
+    <jarDirectory url="file://$PROJECT_DIR$/../../../libs/hadoop-3.4.0/share/hadoop/mapreduce" recursive="false" />
+    <jarDirectory url="file://$PROJECT_DIR$/../../../libs/hadoop-3.4.0/share/hadoop/mapreduce" recursive="false" />
+    <jarDirectory url="file://$PROJECT_DIR$/../../../libs/spark-3.2.0-bin-hadoop3.2/jars" recursive="false" />
+    <jarDirectory url="file://$PROJECT_DIR$/../../../incubator-wayang/wayang-assembly/target/apache-wayang-assembly-0.7.1-incubating-dist/wayang-0.7.1/libs" recursive="false" type="SOURCES" />
+    <jarDirectory url="file://$PROJECT_DIR$/../../../libs/spark-3.2.0-bin-hadoop3.2/jars" recursive="false" type="SOURCES" />
+  </library>
+</component>
