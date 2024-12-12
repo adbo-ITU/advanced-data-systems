@@ -128,30 +128,31 @@ def plot_latency(configs: list[Configuration]):
 
 
 def plot_all_latencies(configs: list[Configuration]):
-    for scaling_factor in get_scaling_factors(configs):
-        fig = plt.subplots(layout="constrained")
-        ax = plt.gca()
+    for threads in get_threads(configs):
+        for scaling_factor in get_scaling_factors(configs):
+            fig = plt.subplots(layout="constrained")
+            ax = plt.gca()
 
-        x = np.arange(len(get_queries(configs)))  # the label locations
-        width = 1  # the width of the bars
+            x = np.arange(len(get_queries(configs)))  # the label locations
+            width = 1  # the width of the bars
 
-        cs = [c for c in configs if c.threads ==
-              4 and c.scaling_factor == scaling_factor]
-        cs.sort(key=lambda x: x.query)
+            cs = [c for c in configs if c.threads ==
+                  threads and c.scaling_factor == scaling_factor]
+            cs.sort(key=lambda x: x.query)
 
-        assert len(cs) == len(get_queries(configs))
+            assert len(cs) == len(get_queries(configs))
 
-        ys = [c.average_by("elapsed_time") for c in cs]
+            ys = [c.average_by("elapsed_time") for c in cs]
 
-        ax.bar(x, ys, width - 0.3, zorder=3, color="lightblue",
-               edgecolor="black", linewidth=2, hatch="...")
+            ax.bar(x, ys, width - 0.3, zorder=3, color="lightblue",
+                   edgecolor="black", linewidth=2, hatch="...")
 
-        ax.grid(zorder=0)
-        ax.set_ylabel('Latency (seconds)')
-        ax.set_title(f'Query latencies (scaling factor {scaling_factor}, 4 threads)')
-        ax.set_xticks(x, [f"Q{q}" for q in sorted(get_queries(configs))])
+            ax.grid(zorder=0)
+            ax.set_ylabel('Latency (seconds)')
+            ax.set_title(f'Query latencies (scaling factor {scaling_factor}, {threads} threads)')
+            ax.set_xticks(x, [f"Q{q}" for q in sorted(get_queries(configs))])
 
-        save_plot("all-latency-" + str(scaling_factor))
+            save_plot(f"all-latency-t{threads}-{str(scaling_factor)}")
 
 
 def read_data(file):
