@@ -16,7 +16,7 @@ def make_out_path(name, format):
     return out_dir / f"{name}.{format}"
 
 
-def save_plot(name):
+def save_plot(name, **kwargs):
     format = "pdf"
 
     if not (work_dir / "output").exists():
@@ -25,7 +25,7 @@ def save_plot(name):
         (work_dir / "output" / format).mkdir()
 
     plt.savefig(make_out_path(name, format),
-                format=format, bbox_inches="tight")
+                format=format, bbox_inches="tight", **kwargs)
 
 
 MARKERS = [('s', None), ('x', None), ('*', None),
@@ -155,6 +155,78 @@ def plot_all_latencies(configs: list[Configuration]):
             save_plot(f"all-latency-t{threads}-{str(scaling_factor)}")
 
 
+def plot_grouped_latencies(configs: list[Configuration], queries=["4.2", "3.3", "1.3"]):
+    queries = sorted(queries)
+    for threads in get_threads(configs):
+        fig = plt.subplots(layout="constrained", figsize=(max(len(queries)*0.8, 5), 4))
+        ax = plt.gca()
+
+        patterns = ["o", "*", "//"]
+
+        x = np.arange(len(queries))  # the label locations
+        width = 0.25  # the width of the bars
+
+        for i, scaling_factor in enumerate(get_scaling_factors(configs)):
+            cs = [c for c in configs if c.threads ==
+                  threads and c.scaling_factor == scaling_factor and c.query in queries]
+            cs.sort(key=lambda x: x.query)
+
+            assert len(cs) == len(queries)
+
+            offset = i * width
+
+            ys = [c.average_by("elapsed_time") * 1000 / scaling_factor for c in cs]
+
+            ax.bar(x + offset, ys, width-0.01, zorder=3, label=f"SF {scaling_factor}",
+                   hatch=patterns[i], edgecolor="black", linewidth=2)
+            # , color="lightblue",
+            #        edgecolor="black", linewidth=2, hatch="...")
+
+        ax.grid(zorder=0)
+        ax.set_ylabel('Normalised latency (milliseconds/scaling factor)')
+        ax.set_title(f'Normalised query latencies for each scaling factor (with {threads} threads)')
+        ax.set_xticks(x + width, [f"Q{q}" for q in sorted(queries)])
+        ax.legend()
+        # ax.set_yscale("log")
+
+        save_plot(f"{'-'.join(queries)}-all-latency-t{threads}")
+
+
+def plot_by_threads(configs: list[Configuration], queries=["4.2", "3.3", "1.3"]):
+    queries = sorted(queries)
+
+    scaling_factor = 100
+    fig = plt.subplots(layout="constrained", figsize=(max(len(queries)*0.8, 5), 4))
+    ax = plt.gca()
+
+    patterns = ["o", "//", "*"]
+
+    x = np.arange(len(queries))  # the label locations
+    width = 0.25  # the width of the bars
+
+    for i, threads in enumerate(get_threads(configs)):
+        cs = [c for c in configs if c.threads == threads and c.scaling_factor == scaling_factor and c.query in queries]
+        cs.sort(key=lambda x: x.query)
+
+        assert len(cs) == len(queries)
+
+        offset = i * width
+
+        ys = [c.average_by("elapsed_time") for c in cs]
+
+        ax.bar(x + offset, ys, width-0.01, zorder=3, label=f"{threads} threads",
+               hatch=patterns[i], edgecolor="black", linewidth=2)
+
+    ax.grid(zorder=0)
+    ax.set_ylabel('Latency (seconds)')
+    ax.set_title(f'Query latencies for varying number of threads (with SF 100)')
+    ax.set_xticks(x + width, [f"Q{q}" for q in sorted(queries)])
+    ax.legend()
+    # ax.set_yscale("log")
+
+    save_plot('-'.join(queries) + f"latency-threads")
+
+
 def read_data(file):
     rows = Measurement.from_file(file)
     print(f"Loaded {len(rows)} experiments")
@@ -181,5 +253,9 @@ if __name__ == "__main__":
     else:
         print(f"All configurations have {REPETITIONS} repetitions, good")
 
-    plot_latency(configurations)
-    plot_all_latencies(configurations)
+    # plot_latency(configurations)
+    # plot_all_latencies(configurations)
+    plot_grouped_latencies(configurations)
+    plot_by_threads(configurations)
+    plot_grouped_latencies(configurations, get_queries(configurations))
+    plot_by_threads(configurations, get_queries(configurations))
