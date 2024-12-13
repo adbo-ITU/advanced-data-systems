@@ -26,6 +26,7 @@ def save_plot(name, **kwargs):
 
     plt.savefig(make_out_path(name, format),
                 format=format, bbox_inches="tight", **kwargs)
+    plt.close()
 
 
 MARKERS = [('s', None), ('x', None), ('*', None),
@@ -87,6 +88,37 @@ class Configuration:
     def average_by(self, key: str):
         return sum([getattr(m, key) for m in self.measurements]) / len(self.measurements)
 
+    def get_operator_distribution(self):
+        averaged_agg = {}
+
+        for m in self.measurements:
+            agg = self.get_operator_distribution_for_measurement(m)
+            for k, v in agg.items():
+                if k not in averaged_agg:
+                    averaged_agg[k] = 0
+                averaged_agg[k] += v
+
+        for k in averaged_agg:
+            averaged_agg[k] /= len(self.measurements)
+
+        return averaged_agg
+
+    def get_operator_distribution_for_measurement(self, measurement: Measurement):
+        agg = {}
+
+        def rec(op):
+            typ, timing = op["operator_type"], op["operator_timing"]
+            if typ not in agg:
+                agg[typ] = 0
+            agg[typ] += timing
+            for op in op["children"]:
+                rec(op)
+
+        for op in measurement.profile["children"]:
+            rec(op)
+
+        return agg
+
 
 def get_queries(configs: list[Configuration]):
     return sorted(set(c.query for c in configs))
@@ -98,6 +130,9 @@ def get_threads(configs: list[Configuration]):
 
 def get_scaling_factors(configs: list[Configuration]):
     return sorted(set(c.scaling_factor for c in configs))
+
+
+DEFAULT_QUERIES = ["1.3", "3.1", "4.2"]
 
 
 def plot_latency(configs: list[Configuration]):
@@ -155,7 +190,7 @@ def plot_all_latencies(configs: list[Configuration]):
             save_plot(f"all-latency-t{threads}-{str(scaling_factor)}")
 
 
-def plot_grouped_latencies(configs: list[Configuration], queries=["4.2", "3.3", "1.3"]):
+def plot_grouped_latencies(configs: list[Configuration], queries=DEFAULT_QUERIES):
     queries = sorted(queries)
     for threads in get_threads(configs):
         fig = plt.subplots(layout="constrained", figsize=(max(len(queries)*0.8, 5), 4))
@@ -192,7 +227,7 @@ def plot_grouped_latencies(configs: list[Configuration], queries=["4.2", "3.3", 
         save_plot(f"{'-'.join(queries)}-all-latency-t{threads}")
 
 
-def plot_by_threads(configs: list[Configuration], queries=["4.2", "3.3", "1.3"]):
+def plot_by_threads(configs: list[Configuration], queries=DEFAULT_QUERIES):
     queries = sorted(queries)
 
     scaling_factor = 100
@@ -227,6 +262,111 @@ def plot_by_threads(configs: list[Configuration], queries=["4.2", "3.3", "1.3"])
     save_plot('-'.join(queries) + f"latency-threads")
 
 
+def plot_operators(configs: list[Configuration], queries=DEFAULT_QUERIES):
+    patterns = ["o", "//", "*"]
+
+    # for q in queries:
+    #     ymax = max(max(c.get_operator_distribution().values()) for c in configs if c.query == q)
+    #
+    #     tmp_ops = [c for c in configs if c.query == q][0].get_operator_distribution()
+    #     op_labels = sorted(tmp_ops.keys(), key=lambda x: tmp_ops[x], reverse=True)
+    #
+    #     for threads in get_threads(configs):
+    #         fig = plt.subplots(layout="constrained", figsize=(6, 4))
+    #         ax = plt.gca()
+    #
+    #         pcs = [c for c in configs if c.threads == threads and c.query == q]
+    #         assert len(pcs) == len(get_scaling_factors(configs))
+    #
+    #         width = 0.75
+    #         x = np.arange(len(tmp_ops))
+    #
+    #         for i, scaling_factor in enumerate(get_scaling_factors(configs)):
+    #             cs = [c for c in pcs if c.scaling_factor == scaling_factor]
+    #             assert len(cs) == 1
+    #             c = cs[0]
+    #
+    #             ops = c.get_operator_distribution()
+    #
+    #             ys = [ops.get(op, 0) for op in op_labels]
+    #             width = 0.25
+    #
+    #             ymax = max(ymax, max(ys))
+    #
+    #             ax.bar(x + i * width, ys, width-0.01, zorder=3, label=f"SF{scaling_factor}",
+    #                 hatch=patterns[i], edgecolor="black", linewidth=2)
+    #
+    #         pretty_labels = []
+    #         for op in op_labels:
+    #             op = op[0].upper() + op[1:].lower()
+    #             joined = ""
+    #             for part in op.split("_"):
+    #                 if len(joined) >= len("ungrouped"):
+    #                     joined += "\n"
+    #                 joined += part + " "
+    #             pretty_labels.append(joined)
+    #
+    #         ax.grid(zorder=0)
+    #         ax.set_ylabel('Normalised time spent on operator\n(ms/scaling factor)')
+    #         ax.set_title(f'Distribution of time spent on operators for Q{q} ({threads} threads)')
+    #         ax.set_xticks(x + width, pretty_labels)
+    #         ax.legend()
+    #         ax.set_ylim(0, ymax * 1.05)
+    #
+    #         save_plot(f"operators-{q}-t{threads}")
+
+
+    for q in queries:
+        ymax = max(max(c.get_operator_distribution().values()) for c in configs if c.query == q)
+
+        tmp_ops = [c for c in configs if c.query == q][0].get_operator_distribution()
+        op_labels = sorted(tmp_ops.keys(), key=lambda x: tmp_ops[x], reverse=True)
+
+        for scaling_factor in get_scaling_factors(configs):
+            fig = plt.subplots(layout="constrained", figsize=(6, 4))
+            ax = plt.gca()
+
+            pcs = [c for c in configs if c.scaling_factor == scaling_factor and c.query == q]
+            assert len(pcs) == len(get_threads(configs))
+
+            width = 0.75
+            x = np.arange(len(tmp_ops))
+
+            for i, threads in enumerate(get_threads(configs)):
+                cs = [c for c in pcs if c.threads == threads]
+                assert len(cs) == 1
+                c = cs[0]
+
+                ops = c.get_operator_distribution()
+
+                ys = [ops.get(op, 0) / threads for op in op_labels]
+                width = 0.25
+
+                ymax = max(ymax, max(ys))
+
+                ax.bar(x + i * width, ys, width-0.01, zorder=3, label=f"{threads} threads",
+                    hatch=patterns[i], edgecolor="black", linewidth=2)
+
+            pretty_labels = []
+            for op in op_labels:
+                op = op[0].upper() + op[1:].lower()
+                joined = ""
+                for part in op.split("_"):
+                    if len(joined) >= len("ungrouped"):
+                        joined += "\n"
+                    joined += part + " "
+                pretty_labels.append(joined)
+
+            ax.grid(zorder=0)
+            ax.set_ylabel('Time spent on operator (seconds/threads)')
+            ax.set_title(f'Distribution of time spent on operators for Q{q} (SF{scaling_factor})')
+            ax.set_xticks(x + width, pretty_labels)
+            ax.legend()
+
+            save_plot(f"operators-{q}-sf{scaling_factor}")
+
+
+
 def read_data(file):
     rows = Measurement.from_file(file)
     print(f"Loaded {len(rows)} experiments")
@@ -255,7 +395,10 @@ if __name__ == "__main__":
 
     # plot_latency(configurations)
     # plot_all_latencies(configurations)
+
     plot_grouped_latencies(configurations)
     plot_by_threads(configurations)
     plot_grouped_latencies(configurations, get_queries(configurations))
     plot_by_threads(configurations, get_queries(configurations))
+
+    plot_operators(configurations)
